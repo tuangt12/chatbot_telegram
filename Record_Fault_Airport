@@ -1,0 +1,106 @@
+/* Script Record Fault Airport TSN*/
+
+// Token sinh ra khi tạo mới chatbot
+var token = "1657586633:AAE2zXSOoa4T1D_KKi4tCDVn3CyLx6kDuN8";
+var botUrl = "https://api.telegram.org/bot"+ token;
+var authorID = "tuangt12";
+var userBotID = "@tsn_sup_bot";
+var userBotRegex = /@tsn_sup_bot/g;
+
+var webHookUrl = "https://script.google.com/macros/s/AKfycbxNVmBnBC2sX8WL5p6akiL7gQZshXECyt_mRRdSv1UEKpkjRGY4/exec";
+
+// Sheet ID Tân Sơn Nhất
+var sheetIDTSN = "1wajk5pGxRAfJ5seFTtRVaYJxoX2GL7I7rO_8kS6avU0";
+
+// Danh sách group được phép truy cập
+var groupIdAllow = [-589926266, -356463556, -447395250];
+
+// -589926266: Group TSN
+// -356463556: Group TestBot
+// -447395250: Group Chém
+
+var groupNoticeErrorID = "-356463556";
+var groupTSN = "-589926266";
+var groupChem = "-447395250";
+
+/*
+* setWebHook() được sử dụng khi đổi webHookUrl. 
+* Khởi tạo webHook API trên Telegram Bot
+*/
+
+function setWebhook() {
+  var response = UrlFetchApp.fetch(botUrl + "/setWebhook?url=" + webHookUrl);
+  Logger.log(response.getContentText());
+}
+
+// deleteWebhook
+function deleteWebhook() {
+  var response = UrlFetchApp.fetch(botUrl + "/deleteWebhook");
+  Logger.log(response.getContentText());
+}
+
+function sendError(textError) {
+  var response = UrlFetchApp.fetch(botUrl + "/sendMessage?chat_id=" + groupNoticeErrorID + "&text=" + encodeURI(textError));
+  Logger.log(response.getContentText());
+}
+
+/*
+* Bot trả lời tin nhắn
+*/
+function replyMessage(id, text, messageId) {
+  var response = UrlFetchApp.fetch(botUrl + "/sendMessage?chat_id=" + id + "&text=" + encodeURI(text) + "&reply_to_message_id=" + messageId);
+  Logger.log(response.getContentText());
+}
+
+/*
+* Phần WebApp
+*/
+
+function doGet(e) {
+  return HtmlService.createHtmlOutput("Thanks");
+}
+
+function doPost(e) {
+  
+  try {
+    var rawData = JSON.parse(e.postData.contents);
+    var text = rawData.message.text;
+    var id = rawData.message.from.id;
+    var name = rawData.message.from.first_name + " " + rawData.message.from.last_name;
+    var messageId = rawData.message.message_id;
+    
+    var _groupID = rawData.message.chat.id;
+    var isError = false;
+    
+    // Kiểm tra id group đang chat, nếu nằm trong danh sách group cho phép thì mới trả lời
+    if ( groupIdAllow.indexOf(_groupID) == -1 ) {
+      isError = true;
+    }
+    
+    // Nếu có tag chatbot thì mới trả lời
+    if (userBotRegex.test(text)) {
+      // và phải nằm trong danh sách group có sẵn
+      if (isError == false) {
+        // lấy ra đoạn text chat, loại bỏ phần tag tên chatbot, chuẩn hoá dấu cách
+        text = text.replace(userBotID,"").trim();
+        // nếu có text thì mới trả lời
+        if (text.length > 0) { 
+          replyMessage(_groupID, "Đã ghi nhận lỗi!", messageId);
+          // ghi vào sheet tương ứng của file Google Sheet
+          var res = text.split(";");
+          SpreadsheetApp.openById(sheetIDTSN).getSheetByName("Report").appendRow([new Date(),id,name,res[0],res[1]]);
+        } else {
+          replyMessage(_groupID, "Đừng tag không, nói gì đi chứ!", messageId);
+        }
+        
+      } else {
+        replyMessage(_groupID, "Group không hợp lệ. Liên hệ Admin!", messageId);
+        SpreadsheetApp.openById(sheetIDTSN).getSheetByName("Error").appendRow([new Date(), id, fullName, text.replace(userBotID,"").trim()]);
+      }
+    }
+  } catch (e){
+    sendError("Hi @"+ authorID + " \n" + JSON.stringify(e, null, 4));
+  }
+
+}
+

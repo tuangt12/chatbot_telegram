@@ -1,0 +1,168 @@
+/* Script CarWrap*/
+
+// Token sinh ra khi tạo mới chatbot
+var token = "1043335832:AAErjNgKbtz2YvKhAAJ-jCrfUQ4tgdMgduU";
+var botUrl = "https://api.telegram.org/bot"+ token;
+var authorID = "tuangt12";
+var userBotID = "@checkDriverBot";
+var userBotRegex = /@checkDriverBot/g;
+
+// Lấy được sau khi Deply as web app lần đầu
+var webHookUrl = "https://script.google.com/macros/s/AKfycbwnDwDSh6vIa2vB9feoDDXfd2z8tprI3Rnmyy9M-Gh4KiUQrU6o/exec";
+// Campaign XMen
+var sheetIDXMen = "1sjbIXGgqSTdoUMreGKPg-Oap503vlQUUA5k6kDwO5Hg";
+// Campaign HN Tháng 7 Sơn Tùng MTP
+var sheetID30 = "1oJYIOsdpVal_kA_3JbZnl75Xct1wAExtAkacIRYlMAE";
+// Campaign HCM T9 ABC Bakery
+var sheetIDABC = "1fQMDdL6dX-zvc6eVPI92TT7FcdMdXGMHng02PUL95BE";
+// Campaign HN T9 Fami
+var sheetIDFami = "1WLSTawa0767x6duPh7GkIGMhpFJElSiNbjl6Yc0t0sM";
+// Campaign HN T10 PNJ
+var sheetIDPNJ = "1BOIvHHRjEgX0cOZjBr2E4B898Z_zb0zjVximZV_W1WE";
+// Campaign HCM T12 Shynh
+var sheetIDShynh = "1Sa4AZRYLJGrMM6JsdBzdJQb4P8Z79IVCjDuX-us2NJg";
+// Campaign HN T12 Citizen
+var sheetIDCitizen = "17qO45a8exxQJQ7dD6XkirBg4-TB4CM5RwdA1IZqqndk";
+// Campaign HCM T1 SmartPay
+var sheetIDSmartPay = "1JlzTnpQTv3ZK36Tp1i-DygIDPmmUnvYz8SCM478B0IY";
+
+// Campaign HCM T5 KOVA - VietMoney
+var sheetIDKOVA = "1HYhBHqfeHQ9XIqW0hnNUFL51WGaO0U6-GbBQfJpM78I";
+
+
+// Group Chém
+var sheetChem = "1gxYXKuBt5FhLuy2IeQIk27biJjHp_GvGsB1KniJuE3I";
+var groupIdAllow = [-356463556, -447395250, -386262449, -447531772];
+
+// Gắn tên file tuỳ từng campaign
+var sheetHCM = sheetIDKOVA; // SheetID cho HCM
+var sheetHN = sheetIDCitizen;  // SheetID cho HN
+
+
+// -356463556: Group TestBot
+// -447395250: Group Chém
+// -386262449: Group dán xe HCM
+// -447531772: Group dán xe HN
+
+var groupNoticeErrorID = "-356463556";
+var groupDanXeHCM = "-386262449";
+var groupDanXeHN = "-447531772";
+var groupChem = "-447395250";
+
+/*
+* setWebHook() được sử dụng khi đổi webHookUrl. 
+* Khởi tạo webHook API trên Telegram Bot
+*/
+
+function setWebhook() {
+  var response = UrlFetchApp.fetch(botUrl + "/setWebhook?url=" + webHookUrl);
+  Logger.log(response.getContentText());
+}
+
+function sendError(textError) {
+  var response = UrlFetchApp.fetch(botUrl + "/sendMessage?chat_id=" + groupNoticeErrorID + "&text=" + encodeURI(textError));
+  Logger.log(response.getContentText());
+}
+
+/*
+* Bot trả lời tin nhắn
+*/
+function replyMessage(id, text, messageId) {
+  var response = UrlFetchApp.fetch(botUrl + "/sendMessage?chat_id=" + id + "&text=" + encodeURI(text) + "&reply_to_message_id=" + messageId);
+  Logger.log(response.getContentText());
+}
+
+/*
+* Check format biển số xe nhập có đúng không
+*/
+function validateLicense(license) {
+  var license_regex = /(^[1-9]{1}[0-9]{1}[a-zA-Z]{1}([a-zA-Z]|[0-9])?)-([0-9]{4,5})/g;
+  return license_regex.test(license);
+}
+
+/*
+* Phần WebApp
+*/
+
+function doGet(e) {
+  return HtmlService.createHtmlOutput("Thanks");
+}
+
+function doPost(e) {
+  
+  try {
+    var rawData = JSON.parse(e.postData.contents);
+    //GmailApp.sendEmail(Session.getEffectiveUser().getEmail(), "Telegram Bot Updates", JSON.stringify(rawData, null, 4));
+    var text = rawData.message.text;
+    var id = rawData.message.from.id;
+    var name = rawData.message.from.first_name + " " + rawData.message.from.last_name;
+    var messageId = rawData.message.message_id;
+    
+    var _groupID = rawData.message.chat.id;
+    var isError = false;
+    
+    //  replyMessage(id, "Đã ghi nhận xe " + text, messageId);
+    //  SpreadsheetApp.openById(sheetID).appendRow([new Date(),id,name,text,'Đã dán']);
+    
+    // Kiểm tra id group đang chat, nếu nằm trong danh sách group cho phép thì mới trả lời
+    if ( groupIdAllow.indexOf(_groupID) == -1 ) {
+      isError = true;
+    }
+    
+    // Nếu có tag chatbot thì mới trả lời
+    if (userBotRegex.test(text)) {
+      // và phải nằm trong danh sách group có sẵn
+      if (isError == false) {
+        // lấy ra đoạn text chat, loại bỏ phần tag tên chatbot, chuẩn hoá dấu cách
+        text = text.replace(userBotID,"").trim();
+        // nếu có text thì mới trả lời
+        if (text.length > 0) {  
+          
+            // Group HCM
+            if (_groupID == groupDanXeHCM){
+                replyMessage(_groupID, "Đã ghi nhận!", messageId);
+                // ghi vào sheet tương ứng của file check Dán - Bóc xe
+                SpreadsheetApp.openById(sheetHCM).getSheetByName("WrapHCM").appendRow([new Date(),id,name,text,'Đã dán']);
+            }
+            
+            // Group HN
+            if (_groupID == groupDanXeHN){
+                replyMessage(_groupID, "Đã ghi nhận!", messageId);
+                // ghi vào sheet tương ứng của file check Dán - Bóc xe
+                SpreadsheetApp.openById(sheetHN).getSheetByName("WrapHN").appendRow([new Date(),id,name,text,'Đã dán']);
+            }
+            
+            // Nếu là group chém gió
+            if (_groupID == groupChem){
+              // Cứ Hạnh nhắn thì troll
+              if (name == "Hạnh Nguyễn undefined"){
+                replyMessage(_groupID, "Lêu Lêu, ghi nhận rồi nhó!. Đã mất tiền!", messageId);
+                // Lưu thông tin ra file Chém
+                SpreadsheetApp.openById(sheetChem).appendRow([new Date(),id,name,text,'Đã mất tiền']);
+              }
+              // còn không thì rep như thường
+              else{
+                replyMessage(_groupID, "OK " + name + ". Đã mất tiền!", messageId);
+                // Lưu thông tin ra file Chém
+                SpreadsheetApp.openById(sheetChem).appendRow([new Date(),id,name,text,'Đã mất tiền']);
+              }
+            }           
+          
+          
+        } else {
+          replyMessage(_groupID, "Đừng tag không, nói gì đi chứ!", messageId);
+        }
+        
+      } else {
+        replyMessage(_groupID, "Group không hợp lệ. Liên hệ Admin!", messageId);
+        SpreadsheetApp.openById(sheetID).getSheetByName("AllData").appendRow([new Date(), id, fullName, text.replace(userBotID,"").trim()]);
+      }
+    }
+  } catch (e){
+    sendError("Hi @"+ authorID + " \n" + JSON.stringify(e, null, 4));
+  }
+  
+  //sendError("Hi @"+ authorID + " \n" + JSON.stringify(e, null, 4));
+  
+}
+
