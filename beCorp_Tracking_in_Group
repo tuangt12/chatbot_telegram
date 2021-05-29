@@ -1,0 +1,159 @@
+/** Script Check beCorp*/
+/** Please Turn off Privacy Mode in Telegram after Create bot - BotFather*/
+
+/*------------------------------------------------------------------------------------------------------------------------------------------*/
+/** INIT */
+
+// Token sinh ra khi tạo mới chatbot
+var token = "1846268770:AAHcAFokhc-TpM5U5dnGfusCVH4CebYZgsg";
+var botUrl = "https://api.telegram.org/bot"+ token;
+var authorID = "tuangt12";
+var userBotID = "@becorp_bot";
+var userBotRegex = /@becorp_bot/g;
+
+// Lấy được sau khi Deply as web app lần đầu
+var webHookUrl = "https://script.google.com/macros/s/AKfycbwJDeVVSqsFth2FE74vnPO3nLvN6pDOW9aU_ZEPyUZKjEAUj6dCEvA8MEXQclCpeXAiBA/exec";
+
+/*------------------------------------------------------------------------------------------------------------------------------------------*/
+
+/** Setup Group */
+var groupIdAllow = [-356463556, -447395250];
+// -356463556: Group TestBot
+// -447395250: Group Chém
+var groupTestBot = "-356463556";
+var groupChem = "-447395250";
+
+/** Set up Sheet */
+var sheetChem = "1gxYXKuBt5FhLuy2IeQIk27biJjHp_GvGsB1KniJuE3I";
+var sheetID = sheetChem;
+
+/*------------------------------------------------------------------------------------------------------------------------------------------*/
+/** 
+ * Setup Period info
+ */
+
+var current_period = new Date();
+var current_month = current_period.getMonth()+1;
+var perious_month = current_month - 1;
+var next_month = current_month + 1;
+var current_date = current_period.getDate();
+var period = "";
+var month_period = 0;
+if (current_date > 25){
+  month_period = next_month;
+  period = "26/" + current_month + " - 25/" + next_month;      
+} else{
+  month_period = current_month;
+  period = "26/" + perious_month + " - 25/" + current_month;
+}
+var sum_collumn = 2 + 4*(month_period - 5);
+
+/*------------------------------------------------------------------------------------------------------------------------------------------*/
+
+/**
+* setWebHook() được sử dụng khi đổi webHookUrl. 
+* Khởi tạo webHook API trên Telegram Bot
+*/
+
+function setWebhook() {
+  var response = UrlFetchApp.fetch(botUrl + "/setWebhook?url=" + webHookUrl);
+  Logger.log(response.getContentText());
+}
+
+/**
+ * Gửi thông báo lỗi
+ */
+function sendError(textError) {
+  var response = UrlFetchApp.fetch(botUrl + "/sendMessage?chat_id=" + groupTestBot + "&text=" + encodeURI(textError));
+  Logger.log(response.getContentText());
+}
+
+/**
+* Bot trả lời tin nhắn
+*/
+function replyMessage(id, text, messageId) {
+  var response = UrlFetchApp.fetch(botUrl + "/sendMessage?chat_id=" + id + "&text=" + encodeURI(text) + "&reply_to_message_id=" + messageId);
+  Logger.log(response.getContentText());
+}
+
+function sendText(chatId, text, keyBoard) {
+  var data = {
+    method: "post",
+    payload: {
+      method: "sendMessage",
+      chat_id: String(chatId),
+      text: text,
+      parse_mode: "HTML",
+      reply_markup: JSON.stringify(keyBoard)
+    }
+  };
+  UrlFetchApp.fetch(botUrl + '/', data);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------*/
+
+
+/** Script WebApp */
+
+function doGet(e) {
+  return HtmlService.createHtmlOutput("Thanks");
+}
+
+function doPost(e) {
+  
+  try {
+    /** Parse Data */
+    var rawData = JSON.parse(e.postData.contents);
+    var text = rawData.message.text;
+    var id = rawData.message.from.id;
+    var name = rawData.message.from.first_name + " " + rawData.message.from.last_name;
+    var messageId = rawData.message.message_id;   
+    var _groupID = rawData.message.chat.id;
+
+    /** Check Group Allowed */
+    var isError = false;    
+    // Kiểm tra id group đang chat, nếu nằm trong danh sách group cho phép thì mới trả lời
+    if ( groupIdAllow.indexOf(_groupID) == -1 ) {
+      isError = true;
+    }
+    
+    // Nếu có tag chatbot thì mới trả lời
+    if (userBotRegex.test(text)) {
+      // và phải nằm trong danh sách group có sẵn
+      if (isError == false) {
+        // lấy ra đoạn text chat, loại bỏ phần tag tên chatbot, chuẩn hoá dấu cách
+        text = text.replace(userBotID,"").trim();
+        
+        var beCorp_Remain = SpreadsheetApp.openById(sheetChem).getSheetByName(id).getRange(4,sum_collumn).getValue() - Number(text);
+
+        // nếu có text thì mới trả lời
+        if (text.length > 0) {             
+            //Nếu là group Chém
+            if (_groupID == groupChem){
+                replyMessage(_groupID, name + " vừa chi tiêu: " + text + ",000đ.\nHạn mức còn lại trong chu kỳ " + period + " của bạn là: " + beCorp_Remain + ",000đ", messageId);
+                // Lưu thông tin ra file Chém
+                SpreadsheetApp.openById(sheetChem).appendRow([new Date(),id,name,text]);
+            }  
+          
+            // Nếu là group TestBot
+            if (_groupID == groupTestBot){
+                replyMessage(_groupID, name + " vừa chi tiêu: " + text + ",000đ.\nHạn mức còn lại trong chu kỳ " + period + " của bạn là: " + beCorp_Remain + ",000đ", messageId);
+                // Lưu thông tin ra file Chém
+                SpreadsheetApp.openById(sheetChem).appendRow([new Date(),id,name,text]);
+            }
+          
+          
+        } else {
+          replyMessage(_groupID, "Đừng tag không, nói gì đi chứ!", messageId);
+        }
+        
+      } else {
+        replyMessage(_groupID, "Group không hợp lệ. Liên hệ Admin!", messageId);
+        sendError("Hi @"+ authorID + " \nThằng " + fullName + " có id là " + id + " vừa lôi Bot " + userBotID + " vào Group không hợp lệ!");
+        SpreadsheetApp.openById(sheetID).getSheetByName("AllData").appendRow([new Date(), id, fullName, text.replace(userBotID,"").trim()]);
+      }
+    }
+  } catch (e){
+    sendError("Hi @"+ authorID + " \n" + JSON.stringify(e, null, 4));
+  } 
+}
